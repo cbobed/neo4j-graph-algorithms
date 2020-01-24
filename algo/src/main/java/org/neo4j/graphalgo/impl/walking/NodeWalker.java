@@ -89,8 +89,12 @@ public class NodeWalker {
             currentNodeId = nextNodeId;
 
             if (currentNodeId == -1 || !terminationFlag.running()) {
-                // End walk when there is no way out and return empty result
-                return Arrays.copyOf(nodeIds,1);
+//                // End walk when there is no way out and return empty result
+//                return Arrays.copyOf(nodeIds,1);
+                // CBL: modifiedBehaviour for rdf2vec. return the traversed walk so far
+            	// In our case is interesting for literal values, although it will only happen 
+            	// if we get a directed graph
+                return Arrays.copyOf(nodeIds, nodeIds.length); 
             }
             nodeIds[i] = toOriginalNodeId(graph, currentNodeId);
         }

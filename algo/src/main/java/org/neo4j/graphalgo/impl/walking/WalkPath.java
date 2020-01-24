@@ -19,14 +19,19 @@
 package org.neo4j.graphalgo.impl.walking;
 
 
+import org.neo4j.cypher.internal.compatibility.valueHelper;
 import org.neo4j.graphalgo.results.VirtualRelationship;
+import org.neo4j.graphalgo.walking.RDF2VecOutput;
 import org.neo4j.graphdb.*;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class WalkPath implements Path {
     public static final Path EMPTY = new WalkPath(0);
@@ -55,6 +60,124 @@ public class WalkPath implements Path {
         }
         return result;
     }
+    
+    /* CBL */ 
+    public static Path toPathReconstructing (GraphDatabaseAPI api, long[] nodes, Direction dir) {
+        if (nodes.length == 0) return EMPTY;
+        WalkPath result = new WalkPath(nodes.length);
+        ArrayList<Relationship> candidates = new ArrayList<>();
+        Node node = api.getNodeById(nodes[0]);
+        result.addNode(node);
+        for (int i = 1; i < nodes.length; i++) {
+            Node nextNode = api.getNodeById(nodes[i]);
+            switch (dir) {
+	            case INCOMING:
+	            	for (Relationship rel: node.getRelationships(dir)) {
+	                	if (rel.getStartNodeId() == nextNode.getId()) {
+	                		candidates.add(rel); 
+	                	}
+	                }            
+	            	break; 
+	            case OUTGOING: 
+	            	for (Relationship rel: node.getRelationships(dir)) {
+	                	if (rel.getEndNodeId() == nextNode.getId()) {
+	                		candidates.add(rel); 
+	                	}
+	                }
+	            	break; 
+            	case BOTH:
+            		for (Relationship rel: node.getRelationships(dir)) {
+	                	if (rel.getEndNodeId() == nextNode.getId() ||
+	                			rel.getStartNodeId() == nextNode.getId()) {
+	                		candidates.add(rel); 
+	                	}
+	                }
+            		break; 
+            }
+            
+//            result.addRelationship(new VirtualRelationship(node, nextNode, NEXT));
+            result.addRelationship(candidates.get(ThreadLocalRandom.current().nextInt(candidates.size())));
+            result.addNode(nextNode);
+            node = nextNode;
+            candidates.clear(); 
+        }
+        return result;
+    }
+    
+    /* CBL */ 
+    public static RDF2VecOutput toPathReconstructingRDF2Vec (GraphDatabaseAPI api, long[] nodes, Direction dir, Map<String,String> labelURIMap) {
+        if (nodes.length == 0) return null; 
+        String result = ""; 
+        ArrayList<Relationship> candidates = new ArrayList<>();
+        Node node = api.getNodeById(nodes[0]);
+        result += WalkPath.getRDF2VecWord(node);
+        
+        for (int i = 1; i < nodes.length; i++) { 	
+            Node nextNode = api.getNodeById(nodes[i]);
+            switch (dir) {
+	            case INCOMING:
+	            	for (Relationship rel: node.getRelationships(dir)) {
+	                	if (rel.getStartNodeId() == nextNode.getId()) {
+	                		candidates.add(rel); 
+	                	}
+	                }            
+	            	break; 
+	            case OUTGOING: 
+	            	for (Relationship rel: node.getRelationships(dir)) {
+	                	if (rel.getEndNodeId() == nextNode.getId()) {
+	                		candidates.add(rel); 
+	                	}
+	                }
+	            	break; 
+            	case BOTH:
+            		for (Relationship rel: node.getRelationships(dir)) {
+	                	if (rel.getEndNodeId() == nextNode.getId() ||
+	                			rel.getStartNodeId() == nextNode.getId()) {
+	                		candidates.add(rel); 
+	                	}
+	                }
+            		break; 
+            }
+            
+//            result.addRelationship(new VirtualRelationship(node, nextNode, NEXT));
+            Relationship rel = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size())); 
+            result += "->" + WalkPath.getRDF2VecWord(rel, labelURIMap) ; 
+            result += "->" + WalkPath.getRDF2VecWord(nextNode); 
+            node = nextNode;
+            candidates.clear(); 
+        }
+        return  new RDF2VecOutput(result);
+    }
+    
+    public static String getRDF2VecWord (Node node) {
+    	String val = null; 
+    	if (node.hasProperty("iri")) {
+    		val = (String)node.getProperty("iri");
+    		
+    		return val.replace("http://dbpedia.org/resource/", "dbr:")
+			.replace("http://dbpedia.org/ontology/", "dbo:")
+			.replace("http://www.w3.org/1999/02/22-rdf-syntax-ns#", "rdf:")
+			.replace("http://www.w3.org/2000/01/rdf-schema#", "rdfs:").replace("->", ""); 
+    	}
+    	else {
+    		val = node.getLabels().toString(); 
+    		return val.replace("\n", " ").replace("\t", " ")
+					.replace("->", ""); 
+    	}
+    }
+    
+    
+    public static String getRDF2VecWord (Relationship rel, Map<String, String> labelURIMap) {
+    	String type = rel.getType().name(); 
+    	return (labelURIMap.containsKey(type)? 
+    			labelURIMap.get(type).replace("http://dbpedia.org/resource/", "dbr:")
+					.replace("http://dbpedia.org/ontology/", "dbo:")
+					.replace("http://www.w3.org/1999/02/22-rdf-syntax-ns#", "rdf:")
+					.replace("http://www.w3.org/2000/01/rdf-schema#", "rdfs:").replace("->", "") : 
+				type.replace("\n", " ").replace("\t", " ")
+				.replace("->", "")); 
+    }
+    
 
     public static Path toPath(GraphDatabaseAPI api, long[] nodes, double[] costs) {
         if (nodes.length == 0) return EMPTY;

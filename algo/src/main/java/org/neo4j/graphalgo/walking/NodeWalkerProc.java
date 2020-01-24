@@ -101,7 +101,7 @@ public class NodeWalkerProc  {
         return randomWalks
                 .map( nodes -> new WalkResult(nodes, returnPath ? WalkPath.toPath(api, nodes) : null));
     }
-
+   
 
     private IntStream idStream(@Name(value = "start", defaultValue = "null") Object start, Graph graph, int limit) {
         int nodeCount = Math.toIntExact(graph.nodeCount());
